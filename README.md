@@ -1,55 +1,99 @@
-# Job Agent Learning
+# AI Job Search & Resume Matching Agent — Jev AI, Custom Ollama Model & LLM Integration
 
-A Spring Boot application combining Spring AI, Ollama, Jev AI, and MySQL to search stored job listings and analyze resume-to-job fit.
+An AI-powered Job Search and Resume Matching Agent built using **Java, Spring Boot, Spring AI, Jev AI, Ollama, a custom LLM, and MySQL**.
 
-> **Current limitation:** The supplied code searches job records already stored in MySQL. It does not yet fetch live jobs from Naukri or submit applications. Those capabilities require a permitted job-source integration and a separate application workflow.
+This project demonstrates how to integrate an external AI API such as Jev AI with a locally running Large Language Model (LLM), create a custom Ollama model using a `Modelfile`, and build AI-powered job search and resume analysis capabilities in a Java backend application.
+
+## Key Highlights
+
+This project focuses on three core areas:
+
+- **Jev AI integration:** Evaluate resume-job compatibility and obtain match scores through the Jev AI API.
+- **Custom LLM development:** Create and run a custom Ollama model using a `Modelfile` with instructions tailored to job search and resume analysis.
+- **Spring AI and LLM integration:** Use Spring AI's `ChatClient` and tool calling to generate resume analysis, identify skill gaps, suggest improvements, and search jobs stored in MySQL.
 
 ## Features
 
-- Search jobs in MySQL by keyword, location, and minimum salary.
-- Extract search criteria from natural-language requests with Ollama.
-- Use Spring AI tool calling to invoke Java job-search methods.
-- Score resume/job fit through the Jev API.
-- Generate detailed resume analysis with Ollama.
-- Expose REST APIs for job search and resume analysis.
+- Job search by keyword, location, and minimum salary.
+- Natural-language job search using an LLM.
+- Spring AI tool calling to invoke Java methods.
+- Jev AI integration for resume-job match scoring.
+- Resume analysis using a local Ollama model.
+- Custom Ollama model creation using a `Modelfile`.
+- Integration of the custom model with Spring AI.
+- Skill gap identification and resume improvement suggestions.
+- REST APIs for job search and resume analysis.
+- MySQL-backed job data retrieval.
+- Separate service integrations for Jev AI scoring and LLM-generated analysis.
 
-## Technology
+> **Current limitation:** Job search currently filters records stored in MySQL. Live Naukri job discovery and automated job submission have not yet been implemented.
 
-- Java and Maven (use versions configured in `pom.xml`)
-- Spring Boot and Spring AI `ChatClient`
-- Ollama (currently configured as `llama3.2`)
-- Jev AI API
-- MySQL
-- Postman or another HTTP client
+## Technology Stack
+
+| Technology | Purpose |
+|---|---|
+| Java | Backend programming language |
+| Spring Boot | REST APIs and application framework |
+| Spring AI | LLM integration and tool calling |
+| Jev AI | Resume-job match scoring |
+| Ollama | Local LLM runtime |
+| Llama 3.2 | Base model for the custom Ollama model |
+| Custom Ollama model | Job search and resume analysis instructions |
+| MySQL | Job data storage |
+| Spring Data JPA | Database access |
+| Maven | Dependency management and build |
+| Postman | API testing |
 
 ## Architecture
 
 ```text
-Client / Postman
-       |
-       v
-Spring Boot controllers
-       |
-       +--> /api/agent/jobs --> ChatClient (Ollama) --> JobSearchTools
-       |                                                |
-       |                                                v
-       |                                      JobRepository --> MySQL
-       |
-       +--> /api/agent/chat --> Ollama extracts criteria --> JobSearchTools
-       |
-       +--> /api/resume/match
-       |       +--> JevService --> Jev API (score/category)
-       |       +--> ResumeAnalysisService --> Ollama
-       |
-       +--> /api/resume/agent-analysis
-               +--> Ollama ChatClient --> JevResumeScoringTool --> Jev API
+                    Client / Postman
+                           |
+                           v
+                 Spring Boot REST APIs
+                           |
+             +-------------+-------------+
+             |                           |
+             v                           v
+        Job Search                 Resume Analysis
+             |                           |
+             v                           v
+     Spring AI ChatClient          Resume Services
+             |                           |
+             v                    +------+------+
+      Custom Ollama Model         |             |
+      job-agent-model              v             v
+             |                  Jev AI       Ollama LLM
+             v                  API          Analysis
+       JobSearchTools
+             |
+             v
+       JobRepository
+             |
+             v
+           MySQL
 ```
 
-## Prerequisites
+The application combines a local LLM with an external AI scoring API:
 
-Install Java, Maven, MySQL, and [Ollama](https://ollama.com/). Obtain a Jev API key.
+- **Ollama** runs the custom local model and generates text-based analysis.
+- **Jev AI** provides resume-job matching information through its API.
+- **Spring AI** connects the application to the local chat model and supports tool calling.
+- **MySQL** stores job records used by the job search functionality.
 
-Check installations:
+## 1. Prerequisites
+
+Install the following tools before running the application:
+
+- Java compatible with the project's `pom.xml`
+- Maven
+- MySQL
+- Ollama
+- Jev AI API key
+- Postman
+- Git (optional, for version control)
+
+Verify the installations:
 
 ```bash
 java -version
@@ -58,7 +102,23 @@ ollama --version
 mysql --version
 ```
 
-## 1. Configure MySQL
+## 2. Clone or Open the Project
+
+If the repository is already on your computer, navigate to its root directory:
+
+```bash
+cd ~/Downloads/job-agent-learning
+```
+
+Verify the project files:
+
+```bash
+ls
+```
+
+You should see files such as `pom.xml`, `src`, and `application.yml` under the resources directory.
+
+## 3. Configure MySQL
 
 Create the database:
 
@@ -66,7 +126,7 @@ Create the database:
 CREATE DATABASE jobagent;
 ```
 
-Example `src/main/resources/application.yml` datasource configuration:
+Configure the datasource in `src/main/resources/application.yml`:
 
 ```yaml
 spring:
@@ -75,67 +135,113 @@ spring:
     username: root
     password: ${DB_PASSWORD:password}
     driver-class-name: com.mysql.cj.jdbc.Driver
-    hikari:
-      connection-timeout: 10000
-      initialization-fail-timeout: 10000
   jpa:
     open-in-view: false
 ```
 
-Set the database password in the shell used to start Spring Boot:
+Set your local database password in the terminal:
 
 ```bash
 export DB_PASSWORD='your-local-mysql-password'
 ```
 
-Ensure the `Job` entity, `JobRepository`, and database schema agree. Insert some job records before testing search endpoints. `JobSearchTools` currently filters database rows; it does not retrieve live listings from Naukri.
+Ensure that the following components are configured correctly:
 
-## 2. Configure Jev
+- `Job` entity
+- `JobRepository`
+- Database schema and JPA settings
 
-The supplied `JevService` sends requests to:
+Add job records to MySQL before testing job search. The search APIs operate on the available database records rather than retrieving live job listings.
+
+## 4. Configure Jev AI
+
+The project integrates with the Jev AI API:
 
 ```text
 https://jev-ai.org/api/v1/systemone/
 ```
 
-It sends model identifier `jev-1.13`, the resume and job description in `state`, and questions for the match score, job category, and detailed analysis.
+The current implementation uses the model identifier `jev-1.13` and sends the resume, job description, and scoring questions to the API.
 
-Set the API key:
+Configure your Jev AI API key as an environment variable:
 
 ```bash
 export JEV_API_KEY='your-jev-api-key'
 ```
 
-Configure the property in `application.yml`:
+Add the corresponding configuration to `application.yml`:
 
 ```yaml
 jev:
   api-key: ${JEV_API_KEY}
 ```
 
-Never commit API keys to Git. Rotate a key if it has been exposed.
+The application uses Jev AI to obtain resume matching information, including a match probability or percentage and job category, as supported by the API response.
 
-**Important:** `jev-1.13` is the model identifier sent to the Jev service. It is not an Ollama model created with a `Modelfile`.
+**Important security notes:**
 
-## 3. Install and test the Ollama base model
+- Never commit your API key to GitHub.
+- Do not put real API keys in `application.yml`.
+- If a real key has previously been exposed, rotate it before publishing the repository.
+- The Jev model identifier is separate from the local Ollama model.
 
-Download the configured model:
+## 5. Install and Run Ollama
+
+Ollama allows you to run an LLM locally.
+
+Download and install it from:
+
+https://ollama.com/download
+
+### Step 1: Download the base model
 
 ```bash
 ollama pull llama3.2
+```
+
+### Step 2: Verify the model
+
+```bash
 ollama list
+```
+
+### Step 3: Run the base model
+
+```bash
 ollama run llama3.2
 ```
 
-Type a prompt to verify it responds, then exit the interactive session.
+Test it with a prompt:
 
-## 4. Create a custom Ollama model
+```text
+Explain how to compare a Java developer's resume with a job description.
+```
 
-A custom Ollama model can have a project-specific name and system prompt. This configures a model on top of an existing model; it **does not train or fine-tune new model weights**.
+This verifies that the base model is available before creating your custom model.
 
-### Step 1: Create a `Modelfile`
+## 6. Create a Custom Ollama Model
 
-Create a file named `Modelfile` in the project root, alongside `pom.xml`:
+This project uses a custom model named `job-agent-model`.
+
+The model is based on `llama3.2`, with a custom system prompt and generation parameters.
+
+**Important:** Creating a model from a `Modelfile` customizes the existing model's configuration. It does not train or fine-tune new model weights.
+
+### Step 1: Navigate to the project root
+
+```bash
+cd ~/Downloads/job-agent-learning
+```
+
+Create a file named `Modelfile` alongside `pom.xml`:
+
+```bash
+touch Modelfile
+```
+
+### Step 2: Add the model configuration
+
+Open `Modelfile` in your editor and add:
 
 ```text
 FROM llama3.2
@@ -143,38 +249,88 @@ FROM llama3.2
 PARAMETER temperature 0.2
 
 SYSTEM """
-You are a careful job-search and resume-analysis assistant.
-Use only facts provided in the resume, job description, or job records.
-Do not invent jobs, skills, employers, salaries, or experience.
-Distinguish between a skill that is missing and a skill that is simply
-not mentioned.
+You are an AI job-search and resume-analysis assistant.
+
+Help users find relevant jobs and evaluate resumes against job descriptions.
+
+Use only the information provided in the resume, job description,
+and available job records.
+
+Do not invent jobs, skills, employers, salaries, or professional experience.
+
+Identify matching skills, missing or unverified requirements,
+relevant experience, and resume improvement suggestions.
+
 For job searches, use available job-search tools instead of inventing
 job listings.
 """
 ```
 
-### Step 2: Build the custom model
+### Understanding the Modelfile
 
-In a terminal, change to the directory containing the `Modelfile`, then run:
+- `FROM llama3.2`: Selects the base model.
+- `PARAMETER temperature 0.2`: Controls response variability; a lower value generally makes responses more consistent.
+- `SYSTEM`: Defines the assistant's default role and behavior.
+
+### Step 3: Build the custom model
+
+Run the following command from the directory containing the `Modelfile`:
 
 ```bash
 ollama create job-agent-model -f Modelfile
+```
+
+Ollama creates a model named `job-agent-model` using the base model and your configuration.
+
+### Step 4: Verify the custom model
+
+```bash
 ollama list
 ```
 
-You should see `job-agent-model` in the model list.
+You should see `job-agent-model` in the list.
 
-### Step 3: Test it
+### Step 5: Run the custom model
 
 ```bash
 ollama run job-agent-model
 ```
 
-Try asking it to explain how to evaluate a Java Spring Boot role against a resume without inventing candidate experience.
+Test it with:
 
-### Step 4: Configure Spring AI
+```text
+I am a Java backend developer with Spring Boot and Kafka experience.
+What should you evaluate when comparing my resume with a job description?
+```
 
-In `src/main/resources/application.yml`:
+You can also test whether it avoids inventing job listings:
+
+```text
+Find Java developer jobs in Noida with a minimum salary of 25 LPA.
+Do not invent job listings if no job data is available.
+```
+
+The model should follow its configured instructions. However, the custom model by itself cannot query your MySQL database or retrieve live job listings. Those capabilities must be provided by the Spring Boot application.
+
+### Step 6: Rebuild the model after changing the Modelfile
+
+If you change the system prompt or parameters, recreate the model:
+
+```bash
+ollama create job-agent-model -f Modelfile
+```
+
+Then test it again:
+
+```bash
+ollama run job-agent-model
+```
+
+## 7. Integrate the Custom Model with Spring AI
+
+Spring AI provides abstractions such as `ChatClient` to interact with LLMs from Java.
+
+Open `src/main/resources/application.yml` and configure Ollama:
 
 ```yaml
 spring:
@@ -187,9 +343,61 @@ spring:
           temperature: 0.2
 ```
 
-The configured name must match the name used in `ollama create`. Restart Spring Boot after changing the YAML. To keep using the original model, set `model: llama3.2`.
+If the file already contains datasource, Jev AI, server, or other settings, merge this configuration with the existing file rather than replacing everything.
 
-### Step 5: Verify Ollama over HTTP
+The model name must match the name used in:
+
+```bash
+ollama create job-agent-model -f Modelfile
+```
+
+Restart the Spring Boot application after changing the configuration.
+
+### How ChatClient uses the model
+
+Example:
+
+```java
+@Service
+public class ResumeAnalysisService {
+
+    private final ChatClient chatClient;
+
+    public ResumeAnalysisService(ChatClient.Builder builder) {
+        this.chatClient = builder.build();
+    }
+
+    public String analyzeResume(
+            String resume,
+            String jobDescription) {
+
+        return chatClient.prompt()
+                .system("""
+                    You are an expert technical recruiter.
+                    Do not invent skills or experience.
+                    """)
+                .user("""
+                    Analyze the resume against the job description.
+
+                    Resume:
+                    %s
+
+                    Job Description:
+                    %s
+                    """.formatted(resume, jobDescription))
+                .call()
+                .content();
+    }
+}
+```
+
+When this service invokes `chatClient`, Spring AI uses the configured chat model. In this project, that model is `job-agent-model`.
+
+The request-specific system prompt adds instructions for that particular operation alongside the model's default instructions.
+
+## 8. Test the Custom Model Through the Ollama API
+
+You can test Ollama independently of Spring Boot.
 
 ```bash
 curl http://localhost:11434/api/chat \
@@ -199,57 +407,131 @@ curl http://localhost:11434/api/chat \
     "messages": [
       {
         "role": "user",
-        "content": "Say hello and explain your role as a job-search assistant."
+        "content": "Explain your role as a job-search and resume-analysis assistant."
       }
     ],
     "stream": false
   }'
 ```
 
-If it fails, check that Ollama is running, the model exists in `ollama list`, and port `11434` is reachable.
+A successful request returns a JSON response containing the generated message.
 
-## 5. How Jev and Ollama work together
+This verifies that:
 
-### Jev scoring
+1. Ollama is accessible.
+2. The custom model exists.
+3. The model can generate a response through the HTTP API.
 
-`JevService.evaluateResume(resume, jobDescription)` checks that `JEV_API_KEY` is configured, sends the resume and job description to Jev, and parses the JSON response.
+## 9. How Jev AI and Ollama Work Together
 
-`JevResumeScoringTool.scoreResume(...)` reads:
+The project uses two different AI integrations for different responsibilities.
+
+### Jev AI — Resume matching
+
+`JevService` calls the external Jev API with the resume, job description, and relevant questions.
+
+The current scoring integration reads fields such as:
 
 - `answers.java_match.noul`
 - `answers.job_category.choice`
-- `id` (response ID)
+- `id`
 
-It returns the probability, percentage, category, and response ID.
+These fields are used to extract match information, category information, and the Jev response identifier. The actual output depends on the API response.
 
-### Ollama analysis
+### Ollama — Detailed resume analysis
 
-`ResumeAnalysisService` asks Ollama to identify:
+The custom Ollama model generates detailed text-based analysis, including:
 
-- Matching technical skills.
-- Missing or unverified requirements.
-- Relevant experience.
-- Alignment with job responsibilities.
-- Resume improvement suggestions.
+1. Matching technical skills.
+2. Missing or unverified requirements.
+3. Relevant experience.
+4. Alignment with job responsibilities.
+5. Resume improvement suggestions.
 
-`ResumeAgentService` uses another flow: it asks Ollama to invoke `scoreResumeWithJev` and then write a combined analysis. Tool calling depends on the chosen model and Spring AI configuration supporting it. If tool invocation is unreliable, call Jev directly from Java and combine the results in application code.
+### Two resume-analysis flows
 
-The resume endpoints follow different flows:
+**Flow 1: Direct Jev scoring**
 
-- `/api/resume/match`: Java calls Jev directly, then calls Ollama for detailed analysis.
-- `/api/resume/agent-analysis`: Ollama is asked to call the Jev scoring tool.
+Endpoint:
 
-Use `/api/resume/match` when Jev scoring must happen deterministically without relying on the LLM to choose a tool.
+```text
+POST /api/resume/match
+```
 
-## 6. REST API endpoints
+The application calls Jev AI directly from Java and then uses Ollama to generate detailed analysis.
 
-The project has been configured to use port `7096`.
+**Flow 2: Spring AI tool calling**
 
-Base URL: `http://localhost:7096`
+Endpoint:
 
-### A. Structured job search
+```text
+POST /api/resume/agent-analysis
+```
 
-`POST /api/agent/jobs`
+The application asks Ollama to invoke `JevResumeScoringTool` through Spring AI tool calling before generating the analysis.
+
+The direct Java service approach is preferable when Jev scoring must happen deterministically in application code. The tool-calling approach demonstrates how an LLM can request that a Java method be executed.
+
+## 10. Job Search with Spring AI Tool Calling
+
+The application includes `JobSearchTools`, which exposes Java methods such as:
+
+- `searchJobs`
+- `getJobDetails`
+
+These methods search job records stored in MySQL through the application's repository layer.
+
+The high-level flow is:
+
+```text
+User request
+     |
+     v
+Spring Boot Controller
+     |
+     v
+Spring AI ChatClient
+     |
+     v
+LLM determines whether a tool is needed
+     |
+     v
+Java JobSearchTools method
+     |
+     v
+JobRepository
+     |
+     v
+MySQL job records
+     |
+     v
+Tool result returned to the LLM
+     |
+     v
+Response to the user
+```
+
+Tool calling does not automatically give the LLM access to arbitrary databases or external websites. The application explicitly defines the tools and the operations they can perform.
+
+## 11. REST API Endpoints
+
+The application is configured to run on port `7096`.
+
+Base URL:
+
+```text
+http://localhost:7096
+```
+
+### A. Structured Job Search
+
+**Endpoint**
+
+```http
+POST /api/agent/jobs
+```
+
+Example request:
 
 ```json
 {
@@ -260,11 +542,17 @@ Base URL: `http://localhost:7096`
 }
 ```
 
-The `SEARCH` intent asks the chat model to call `searchJobs`, which filters existing MySQL records.
+The application searches existing MySQL job records using the configured job search functionality.
 
-### B. Job details
+### B. Get Job Details
 
-`POST /api/agent/jobs`
+**Endpoint**
+
+```http
+POST /api/agent/jobs
+```
+
+Example request:
 
 ```json
 {
@@ -273,11 +561,17 @@ The `SEARCH` intent asks the chat model to call `searchJobs`, which filters exis
 }
 ```
 
-The `DETAILS` intent calls `getJobDetails` using an exact, case-insensitive title match.
+The application searches for a matching job title in the available records.
 
-### C. Natural-language job search
+### C. Natural-Language Job Search
 
-`POST /api/agent/chat`
+**Endpoint**
+
+```http
+POST /api/agent/chat
+```
+
+Example request:
 
 ```json
 {
@@ -285,41 +579,84 @@ The `DETAILS` intent calls `getJobDetails` using an exact, case-insensitive titl
 }
 ```
 
-Ollama extracts the keyword, location, and minimum salary into JSON. The controller parses it into `JobSearchCriteria` and calls `JobSearchTools.findMatchingJobs`.
+The LLM extracts search criteria, such as keyword, location, and minimum salary. The application converts the criteria into a search request and queries MySQL.
 
-### D. Resume match and analysis
+### D. Resume Match
 
-`POST /api/resume/match`
+**Endpoint**
+
+```http
+POST /api/resume/match
+```
+
+Example request:
 
 ```json
 {
-  "resume": "Paste candidate resume text here",
-  "jobDescription": "Paste the complete job description here"
+  "resume": "Java developer with Spring Boot, Kafka, microservices and MySQL experience.",
+  "jobDescription": "Senior Java Developer required with Java, Spring Boot, Kafka, microservices and SQL experience."
 }
 ```
 
-The response includes the Jev match probability, percentage, category, recommendation, response ID, and detailed Ollama analysis.
+This endpoint uses Jev AI for matching information and Ollama for detailed analysis, according to the current implementation.
 
-### E. Resume agent analysis with tool calling
+### E. Resume Agent Analysis
 
-`POST /api/resume/agent-analysis`
+**Endpoint**
+
+```http
+POST /api/resume/agent-analysis
+```
+
+Example request:
 
 ```json
 {
-  "resume": "Paste candidate resume text here",
-  "jobDescription": "Paste the complete job description here"
+  "resume": "Java developer with Spring Boot, Kafka, microservices and MySQL experience.",
+  "jobDescription": "Senior Java Developer required with Java, Spring Boot, Kafka, microservices and SQL experience."
 }
 ```
 
-This endpoint asks Ollama to call `scoreResumeWithJev` before producing its analysis.
+This endpoint demonstrates an agent-style flow in which Ollama is asked to invoke the Jev resume-scoring tool through Spring AI tool calling.
 
-For each request, use the header:
+For all endpoints, set:
 
-```text
+```http
 Content-Type: application/json
 ```
 
-## 7. Run the application
+The exact response schema depends on the application's controller and service implementations.
+
+## 12. Run the Complete Application
+
+Before starting the application, verify that:
+
+- MySQL is running.
+- The `jobagent` database exists.
+- Job records have been added to MySQL.
+- Ollama is installed and running.
+- The base model `llama3.2` is available.
+- The custom model `job-agent-model` has been created.
+- `DB_PASSWORD` is configured.
+- `JEV_API_KEY` is configured.
+
+### Start Ollama
+
+On systems where Ollama is not already running as a background service, start it using:
+
+```bash
+ollama serve
+```
+
+If Ollama is already running, do not start a second server.
+
+### Verify the custom model
+
+```bash
+ollama list
+```
+
+### Start Spring Boot
 
 From the project root:
 
@@ -333,39 +670,119 @@ If the Maven wrapper is unavailable:
 mvn spring-boot:run
 ```
 
-You can also run `JobAgentLearningApplication` from IntelliJ IDEA.
+Alternatively, run the main application class from IntelliJ IDEA.
 
-Before testing, confirm that MySQL and Ollama are running, the `jobagent` database contains job records, the configured Ollama model exists, and `JEV_API_KEY` and `DB_PASSWORD` are set in the environment used to launch Spring Boot.
+Once the application starts, test the endpoints using Postman.
 
-## 8. Suggested next development steps
+## 13. Troubleshooting
 
-1. Add a job-source adapter using an authorized API or permitted integration.
-2. Store source job ID, canonical URL, date found, and description.
-3. Deduplicate jobs before saving them.
-4. Score each new job against the resume with Jev.
-5. Generate a detailed explanation with Ollama.
-6. Persist the score and analysis to avoid unnecessary repeated calls.
-7. Add application statuses such as `SAVED`, `READY_FOR_REVIEW`, `APPLIED`, `INTERVIEW`, and `REJECTED`.
-8. Generate tailored resume versions and draft application answers for review.
-9. Submit applications only through an authorized application workflow, with user approval where required.
+### Custom model not found
 
-## 9. Troubleshooting
+Check the installed models:
 
-| Symptom | Checks |
-|---|---|
-| Ollama connection refused | Start Ollama and verify port `11434` is reachable. |
-| Model not found | Run `ollama list` and check the configured model name. |
-| Jev API key missing | Set `JEV_API_KEY` in the environment used to launch Spring Boot. |
-| Jev response parsing fails | Check the actual response schema and expected `answers` fields; never log the API key. |
-| No jobs returned | Confirm MySQL contains jobs and check keyword, location, and salary filters. |
-| LLM does not invoke a tool | Confirm model tool-calling support and Spring AI registration; use a direct Java call for mandatory Jev scoring. |
-| Port conflict | Check whether another process is using port `7096`. |
+```bash
+ollama list
+```
 
-## Security notes
+Recreate the model if necessary:
 
-- Keep API keys and database credentials out of source control.
-- Avoid logging full resumes or personal application data.
-- Validate request fields and set reasonable request-size limits.
-- Treat job descriptions and other external text as untrusted input.
-- An AI match score does not guarantee an interview.
-- Do not automate login or job submission unless the job site permits the integration.
+```bash
+ollama create job-agent-model -f Modelfile
+```
+
+### Ollama connection refused
+
+Verify that Ollama is running and that the local API is accessible at:
+
+```text
+http://localhost:11434
+```
+
+### Spring AI still uses the previous model
+
+Check `application.yml` and any profile-specific configuration or environment variables that might override the configured model. Restart Spring Boot after making changes.
+
+### Modelfile changes are not reflected
+
+Recreate the custom model:
+
+```bash
+ollama create job-agent-model -f Modelfile
+```
+
+Test it again:
+
+```bash
+ollama run job-agent-model
+```
+
+### MySQL connection failure
+
+Verify:
+
+- MySQL is running.
+- The database name is `jobagent`.
+- The username and password are correct.
+- `DB_PASSWORD` is set in the environment used to start Spring Boot.
+
+### Jev AI request failure
+
+Verify that `JEV_API_KEY` is set correctly, the key is valid, and the API endpoint is reachable. Check the API response and application logs for details.
+
+### No jobs returned
+
+The job search implementation filters records stored in MySQL. Confirm that job records exist and that their titles, locations, and salary values match your search criteria.
+
+## 14. Future Enhancements
+
+Potential future improvements include:
+
+- Integrate an authorized live job source or permitted job API.
+- Add job deduplication and persistent resume-job match scores.
+- Rank available jobs based on resume compatibility.
+- Generate tailored resume versions for specific job descriptions.
+- Generate draft application answers for user review.
+- Add an application tracker with statuses such as `SAVED`, `APPLIED`, `INTERVIEW`, and `REJECTED`.
+- Add a review-and-approval workflow before submitting applications through an authorized integration.
+- Add automated tests for Jev AI integration and Spring AI tool calling.
+- Add structured output validation and retry handling for AI responses.
+- Add observability, error handling, and request timeouts for external AI calls.
+- Explore model evaluation and fine-tuning if a suitable dataset and training workflow become available.
+
+## 15. Security and Responsible AI
+
+- Never commit API keys, passwords, or other secrets.
+- Use environment variables or a secrets manager for sensitive configuration.
+- Avoid logging complete resumes and personal application data.
+- Validate incoming REST API requests.
+- Treat resumes and external job descriptions as untrusted input.
+- Validate AI-generated results before using them in business decisions.
+- Do not assume that a match score guarantees an interview or job offer.
+- Do not automate job-site login or application submission unless the relevant site permits that integration.
+
+## 16. Useful Ollama Commands
+
+```bash
+# Download the base model
+ollama pull llama3.2
+
+# List installed models
+ollama list
+
+# Create the custom model
+ollama create job-agent-model -f Modelfile
+
+# Run the custom model interactively
+ollama run job-agent-model
+
+# Remove the custom model if no longer needed
+ollama rm job-agent-model
+```
+
+## Conclusion
+
+This project demonstrates the integration of **Jev AI, a custom Ollama model, and Spring AI** in a Java backend application.
+
+It combines external AI-based resume matching with local LLM analysis, demonstrates custom model configuration using an Ollama `Modelfile`, and uses Spring AI tool calling to connect LLM workflows with Java services and MySQL-backed job search.
+
+The project provides a practical foundation for exploring LLM integration, agent-style workflows, resume analysis, and AI-powered recruitment applications using the Spring ecosystem.
