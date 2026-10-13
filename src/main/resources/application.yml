@@ -1,0 +1,40 @@
+
+  spring:
+    datasource:
+      url: jdbc:mysql://localhost:3306/jobagent?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      username: root
+      password: ${DB_PASSWORD:password}
+      driver-class-name: com.mysql.cj.jdbc.Driver
+
+      hikari:
+        connection-timeout: 10000
+        initialization-fail-timeout: 10000
+
+    jpa:
+      open-in-view: false
+
+
+    ai:
+      ollama:
+        base-url: http://localhost:11434
+        chat:
+          options:
+            model: my-resume-agent
+            temperature: 0.2
+
+
+      mcp:
+        server:
+          name: database-server
+          version: 0.0.1
+          type: SYNC
+          protocol: STREAMABLE
+
+  jev:
+    api-key: ${JEV_API_KEY}
+
+  logging:
+    level:
+      com.zaxxer.hikari: DEBUG
+      com.mysql.cj: DEBUG
+
